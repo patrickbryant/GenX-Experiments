@@ -41,7 +41,12 @@ function data_loader(case="three_zones")
 end
 
 
-function workhorse_function(case)
+function run_case(case="three_zones")
+    include(joinpath(case, "Run.jl"))
+    return case
+end
+
+function workhorse_function(case="three_zones")
    # where the main data munging/process happens
 
     #
@@ -65,9 +70,6 @@ function workhorse_function(case)
     # add up total power over zones. Subtract battery charging to give net battery output. Area plots freak out if you have zeros in the mostly negative charging curve. Add a small negative constant to fix numerical issue in plot. 
     power_tot = DataFrame([power[!,9]+power[!,10]+power[!,11] -0.001.-(charge[!,9]+charge[!,10]+charge[!,11]) power[!,5]+power[!,7] power[!,6]+power[!,8] power[!,2]+power[!,3]+power[!,4]],
                           ["Battery_Discharge","Battery_Charge","Solar","Wind","Natural_Gas"])
-
-    # power_tot = DataFrame([power[!,5]+power[!,7] power[!,2]+power[!,3]+power[!,4] power[!,9]-charge[!,9]+power[!,10]-charge[!,10]+power[!,11]-charge[!,11] power[!,6]+power[!,8]],
-    #                       ["Solar","Natural_Gas","Battery","Wind"])
     
     # make plot dataframe grouped by resource type
     power_plot = DataFrame([hour power_tot[istart:iend,1] repeat([names_power[1]],N)],
@@ -106,7 +108,7 @@ function workhorse_function(case)
     
     
 
-    p |> save("test/power.pdf")
+    p |> save(joinpath(case,"results/power.pdf"))
 
     storage_plot = DataFrame( [hour.+0.5 storage[istart-1:iend-1, 9] hour power[istart:iend, 9]-charge[istart:iend, 9] repeat(["1"], N)],
                               ["Hour_storage", "MWh", "Hour", "MW", "Zone"] )
@@ -135,13 +137,13 @@ function workhorse_function(case)
                  width=845, height=400,
                  )]
     
-    p |> save("test/storage.pdf")
+    p |> save(joinpath(case,"results/storage.pdf"))
     
 end
 
 
 function main()
-   workhorse_function(data_loader())
+   workhorse_function()
 end
 
 !isinteractive() && main()

@@ -1,0 +1,4 @@
+Resource,Fuel,Zone,AnnualSumCosts
+MA_natural_gas_combined_cycle,MA_NG,1,2.3882805484690234e8
+CT_natural_gas_combined_cycle,CT_NG,2,6.221167900782153e7
+ME_natural_gas_combined_cycle,ME_NG,3,2.355414799802303e7
