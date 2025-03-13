@@ -518,10 +518,10 @@ uuid = "d2c73de3-f751-5644-a686-071e5b155ba9"
 version = "0.73.10+0"
 
 [[deps.GenX]]
-deps = ["CSV", "Clustering", "Combinatorics", "DataFrames", "DataStructures", "Dates", "Distances", "HiGHS", "JuMP", "LinearAlgebra", "MathOptInterface", "Random", "RecursiveArrayTools", "Statistics", "StatsBase", "YAML"]
-git-tree-sha1 = "43a4bbbcb62df15fc0cb424da6a95980a3f44e7d"
+deps = ["CSV", "Clustering", "Combinatorics", "DataFrames", "DataStructures", "Dates", "Distances", "HiGHS", "JuMP", "LinearAlgebra", "Logging", "MathOptInterface", "PrecompileTools", "Random", "RecursiveArrayTools", "Statistics", "StatsBase", "YAML"]
+path = "/Users/patrickbryant/Documents/DOE/GenX.jl"
 uuid = "5d317b1e-30ec-4ed6-a8ce-8d2d88d7cfac"
-version = "0.4.0"
+version = "0.4.4-dev.3"
 
 [[deps.GeoInterface]]
 deps = ["Extents"]
