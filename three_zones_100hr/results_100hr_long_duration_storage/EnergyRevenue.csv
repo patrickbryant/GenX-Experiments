@@ -1,0 +1,11 @@
+Region,Resource,Zone,Cluster,AnnualSum
+MA,MA_natural_gas_combined_cycle,1,1,1.571643825334791e9
+CT,CT_natural_gas_combined_cycle,2,1,4.9963918814869344e8
+ME,ME_natural_gas_combined_cycle,3,1,1.2421561993446147e8
+MA,MA_solar_pv,1,1,1.3589270572759478e9
+CT,CT_onshore_wind,2,1,1.5346435255472445e9
+CT,CT_solar_pv,2,1,1.3328439576955116e9
+ME,ME_onshore_wind,3,1,1.9883469570118873e9
+MA,MA_battery,1,0,6.855325172885519e8
+CT,CT_battery,2,0,7.117083987350333e8
+ME,ME_battery,3,0,7.13676737466137e8
