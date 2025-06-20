@@ -110,10 +110,10 @@ fig.savefig('plots/demand_TDR.pdf')
 
 
 
-results_8736         = f'{case_TDR_demand}/results'
-results_TDR_SDS      = f'{case_algorithms}/results_TDR_SDS'
-results_TDR_GenX_LDS = f'{case_algorithms}/results_TDR_GenX_LDS'
-results_TDR_SC_LDS   = f'{case_algorithms}/results_TDR_SC_LDS'
+results_8736       = f'{case_TDR_demand}/results'
+results_TDR_SDS    = f'{case_algorithms}/results_TDR_SDS'
+results_TDR_GX_LDS = f'{case_algorithms}/results_TDR_GX_LDS'
+results_TDR_SC_LDS = f'{case_algorithms}/results_TDR_SC_LDS'
 
 class model_parameters:
     def __init__(self, results_path):
@@ -123,11 +123,11 @@ class model_parameters:
             print(results_path)
             for line in lines: print(line.replace('\n',''))
             print('---------------------\n')
-            lines = [line.split() for line in lines]
-        self.presolve_rows = int(lines[2][0])
-        self.presolve_cols = int(lines[2][2])
-        self.presolve_nzrs = int(lines[2][4])
-        # 6 ['IPX', 'model', 'has', '94324', 'rows,', '73888', 'columns', 'and', '397495', 'nonzeros']
+            lines = [line.replace(';','').replace(')','').split() for line in lines]
+
+        self.presolve_rows = np.array(lines[4][4].split('(-'), dtype=int).sum()
+        self.presolve_cols = np.array(lines[4][6].split('(-'), dtype=int).sum()
+        self.presolve_nzrs = np.array(lines[4][8].split('(-'), dtype=int).sum()
         self.rows = int(lines[6][3])
         self.cols = int(lines[6][5])
         self.nzrs = int(lines[6][8])
@@ -142,18 +142,18 @@ class model_parameters:
         self.objective = status.Objval[0]
         
 
-mp_genx = model_parameters(results_TDR_GenX_LDS)
+mp_gx = model_parameters(results_TDR_GX_LDS)
 mp_sc   = model_parameters(results_TDR_SC_LDS)
 print()
-print(f'Parameter count GenX - SC')
-print(f'Presolve')
-print(f'Rows: {mp_genx.presolve_rows - mp_sc.presolve_rows}, Cols: {mp_genx.presolve_cols - mp_sc.presolve_cols}, Nonzeros: {mp_genx.presolve_nzrs - mp_sc.presolve_nzrs}')
+print(f'Parameter count GX - SC')
+print(f'Before Presolve')
+print(f'Rows: {mp_gx.presolve_rows - mp_sc.presolve_rows}, Cols: {mp_gx.presolve_cols - mp_sc.presolve_cols}, Nonzeros: {mp_gx.presolve_nzrs - mp_sc.presolve_nzrs}')
 print(f'IPX')
-print(f'Rows: {mp_genx.rows - mp_sc.rows}, Cols: {mp_genx.cols - mp_sc.cols}, Nonzeros: {mp_genx.nzrs - mp_sc.nzrs}')
-print(f'Constraints: {mp_genx.constraints - mp_sc.constraints}, Variables: {mp_genx.variables - mp_sc.variables}')
-print(f'Free Varaibles: {mp_genx.free - mp_sc.free}, Equality Constraints: {mp_genx.equality - mp_sc.equality}')
+print(f'Rows: {mp_gx.rows - mp_sc.rows}, Cols: {mp_gx.cols - mp_sc.cols}, Nonzeros: {mp_gx.nzrs - mp_sc.nzrs}')
+print(f'Constraints: {mp_gx.constraints - mp_sc.constraints}, Variables: {mp_gx.variables - mp_sc.variables}')
+print(f'Free Varaibles: {mp_gx.free - mp_sc.free}, Equality Constraints: {mp_gx.equality - mp_sc.equality}')
 print()
-print(f'Solve Time: {mp_genx.solve_time} - {mp_sc.solve_time} = {mp_genx.solve_time-mp_sc.solve_time}s')
+print(f'Solve Time: {mp_gx.solve_time} - {mp_sc.solve_time} = {mp_gx.solve_time-mp_sc.solve_time}s')
             
 batteries = ['MA_battery', 'CT_battery', 'ME_battery']
 
@@ -168,9 +168,9 @@ SoC_TDR_SDS = pd.concat([storage_TDR_SDS[168*(i-1):168*i] for i in period_map.Re
 SoC_TDR_SDS['Hour'] = np.arange(8736)+1
 
 # get SoC for LDS representations
-SoC_TDR_GenX_LDS = pd.read_csv(f'{results_TDR_GenX_LDS}/storageEvol.csv')[batteries][1:]
-SoC_TDR_GenX_LDS['Total'] = SoC_TDR_GenX_LDS.sum(axis=1)
-SoC_TDR_GenX_LDS['Hour'] = np.arange(8736)+1
+SoC_TDR_GX_LDS = pd.read_csv(f'{results_TDR_GX_LDS}/storageEvol.csv')[batteries][1:]
+SoC_TDR_GX_LDS['Total'] = SoC_TDR_GX_LDS.sum(axis=1)
+SoC_TDR_GX_LDS['Hour'] = np.arange(8736)+1
 
 SoC_TDR_SC_LDS = pd.read_csv(f'{results_TDR_SC_LDS}/storageEvol.csv')[batteries][1:]
 SoC_TDR_SC_LDS['Total'] = SoC_TDR_SC_LDS.sum(axis=1)
@@ -181,7 +181,7 @@ fig = plt.figure(figsize=(8,4), layout='tight')
 plt.xlabel('Hour')
 plt.ylabel('SoC [MWh]')
 plt.plot(SoC_8736.Hour, SoC_8736.Total, label='8736')
-plt.plot(SoC_TDR_GenX_LDS.Hour, SoC_TDR_GenX_LDS.Total, label='11 Rep. Weeks: GenX LDS')
+plt.plot(SoC_TDR_GX_LDS.Hour, SoC_TDR_GX_LDS.Total, label='11 Rep. Weeks: GenX LDS')
 plt.plot(SoC_TDR_SC_LDS.Hour, SoC_TDR_SC_LDS.Total, label='11 Rep. Weeks: Sparse Chronology')
 plt.plot(SoC_TDR_SDS.Hour, SoC_TDR_SDS.Total, label='11 Rep. Weeks: SDS')
 ax = plt.gca()
@@ -193,7 +193,7 @@ fig = plt.figure(figsize=(8,4), layout='tight')
 plt.xlabel('Hour')
 plt.ylabel('SoC [MWh]')
 plt.plot(SoC_8736.Hour, SoC_8736.Total, label='8736')
-plt.plot(SoC_TDR_GenX_LDS.Hour, SoC_TDR_GenX_LDS.Total, label='11 Rep. Weeks: GenX LDS')
+plt.plot(SoC_TDR_GX_LDS.Hour, SoC_TDR_GX_LDS.Total, label='11 Rep. Weeks: GenX LDS')
 plt.plot(SoC_TDR_SC_LDS.Hour, SoC_TDR_SC_LDS.Total, label='11 Rep. Weeks: Sparse Chronology')
 ax = plt.gca()
 ax.set_xlim([1,8736])
