@@ -1,0 +1,13 @@
+SC
+Presolving model
+101841 rows, 81339 cols, 390301 nonzeros  0s
+90716 rows, 70715 cols, 417004 nonzeros  0s
+Presolve : Reductions: rows 90716(-79512); columns 70715(-49569); elements 417004(-54748)
+Solving the presolved LP
+IPX model has 90716 rows, 71216 columns and 417505 nonzeros
+Input
+    Number of variables:                                71216
+    Number of free variables:                           3852
+    Number of constraints:                              90716
+    Number of equality constraints:                     13970
+    Number of matrix entries:                           417505

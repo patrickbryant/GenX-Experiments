@@ -130,7 +130,7 @@ class results:
         self.flow_csv    = pd.read_csv(f'{results_path}/flow.csv')
         self.flow_csv[['1','2']] /= 1000 # scale to GW
         self.balance_csv = pd.read_csv(f'{results_path}/power_balance.csv')[2:].reset_index(drop=True)
-        self.price_csv   = pd.read_csv(f'{results_path}/prices.csv')
+        self.price_csv   = pd.read_csv(f'{results_path}/prices.csv') # $/MWh
 
         self.capacity_csv = pd.read_csv(f'{results_path}/capacity.csv')
         total_battery = self.capacity_csv[self.capacity_csv.Resource.str.contains('battery')].sum(axis=0)
@@ -141,7 +141,8 @@ class results:
             self.storage = pd.read_csv(f'{results_path}/StorageEvol.csv')[1:].reset_index(drop=True)
             self.LDS = True
         except FileNotFoundError:
-            self.storage_csv = pd.read_csv(f'{results_path}/storage.csv')
+            self.storage_csv = pd.read_csv(f'{results_path}/storage.csv')[2:].reset_index(drop=True)
+            self.storage_csv.drop('Total', axis=1, inplace=True)
             self.LDS = False
 
         self.network = pd.read_csv(f'{self.case_path}/system/Network.csv')
@@ -182,21 +183,30 @@ class results:
             self.power   = pd.concat([self.power_csv  [self.N_trp*(i-1):self.N_trp*i] for i in self.period_map.Rep_Period_Index]).reset_index(drop=True)
             self.curtail = pd.concat([self.curtail_csv[self.N_trp*(i-1):self.N_trp*i] for i in self.period_map.Rep_Period_Index]).reset_index(drop=True)
             self.price   = pd.concat([self.price_csv  [self.N_trp*(i-1):self.N_trp*i] for i in self.period_map.Rep_Period_Index]).reset_index(drop=True)
-            self.power['hour'] = np.arange(self.power.shape[0])+1
-            for r in index_curtail:
-                self.power[f'curtail_{r}'] = self.curtail[r]
-                for z in self.zones:
-                    self.power[f'{z}_curtail_{r}'] = self.curtail[f'{z}_{r}']
 
             if not self.LDS:
                 self.storage = pd.concat([self.storage_csv[self.N_trp*(i-1):self.N_trp*i] for i in self.period_map.Rep_Period_Index]).reset_index(drop=True)
-
-        self.storage['battery'] = self.storage[[f'{z}_battery' for z in self.zones]].sum(axis=1)
+        else:
+            self.power = self.power_csv
+            self.storage = self.storage_csv
+            self.curtail = self.curtail_csv
+            self.price = self.price_csv
+            
+        for r in index_curtail:
+            self.power[f'curtail_{r}'] = self.curtail[r]
+            for z in self.zones:
+                self.power[f'{z}_curtail_{r}'] = self.curtail[f'{z}_{r}']
+            
+        self.power['hour'] = np.arange(self.power.shape[0])+1
+        self.storage.drop('Resource', axis=1, inplace=True)
+        self.storage['battery'] = self.storage.sum(axis=1)
+        self.storage /= 1000 # convert to GWh
         self.power['demand'] = self.power[[f'{z}_demand' for z in self.zones]].sum(axis=1)
 
-        self.battery_revenue = self.price[['1','2','3']]
+        self.battery_revenue = pd.DataFrame() #= self.price[['1','2','3']].copy()
         for i,z in zip(self.zones.index+1, self.zones):
-            self.battery_revenue[str(i)] = ( self.price[str(i)]*(self.power[f'{z}_battery_charge'] + self.power[f'{z}_battery_discharge']) ).cumsum(axis=0)
+            self.battery_revenue[f'{z}_battery'] = ( self.price[str(i)]*(self.power[f'{z}_battery_charge'] + self.power[f'{z}_battery_discharge'])*1000 ).cumsum(axis=0)
+        self.battery_revenue['battery'] = self.battery_revenue.sum(axis=1)
 
             
     def model_status(self):
@@ -248,20 +258,21 @@ class results:
         axr = axl.twinx()
         axr.set_ylabel('Battery SoC [GWd]')
         battery = f'{zone}_battery' if zone else 'battery'
-        axr.plot(self.power.hour.loc[tstart:tend], self.storage.loc[tstart:tend][battery]/24_000, color=(0,0,0,0.8))
+        axr.plot(self.power.hour.loc[tstart:tend], self.storage.loc[tstart:tend][battery]/24, color=(0,0,0,0.8))
         axr.set_ylim([0,self.capacity_csv[self.capacity_csv.Resource==battery].EndEnergyCap.iloc[0]/24_000])
         axl.plot([],[],color=(0,0,0,0.8), label='Battery SoC')
         
         axl.legend(bbox_to_anchor=(1.10, 1), loc='upper left')
         fig.savefig(plot_name)
+        plt.close()
 
 
         
-results_8736       = f'{case_TDR_demand}/results'
+results_8736       = f'{case_TDR_demand}/results_added_NG'
 results_TDR_SDS    = f'{case_algorithms}/results_TDR_SDS'
 # results_TDR_GX_LDS = f'{case_algorithms}/results_TDR_GX_LDS'
-results_TDR_SC_LDS = f'{case_algorithms}/results_TDR_SC_LDS_vS_restricted'
-results_TDR_GX_LDS = f'{case_algorithms}/results_TDR_GX_LDS'
+results_TDR_SC_LDS = f'{case_algorithms}/results_TDR_SC_LDS_added_NG'
+results_TDR_GX_LDS = f'{case_algorithms}/results_TDR_GX_LDS_added_NG'
 # results_TDR_SC_LDS = f'{case_algorithms}/results_TDR_SC_LDS_vS_unrestricted'
 
 gx = results(results_TDR_GX_LDS)
@@ -279,45 +290,30 @@ print(f'Free Varaibles: {gx.free - sc.free}, Equality Constraints: {gx.equality 
 print()
 print(f'Solve Time: {gx.solve_time} - {sc.solve_time} = {gx.solve_time-sc.solve_time}s')
 
-gx.plot_dispatch_window(0,168,'plots/dispatch_window_gx.pdf')
-gx.plot_dispatch_window(0,168,'plots/dispatch_window_gx_1.pdf', zone='MA')
-gx.plot_dispatch_window(0,168,'plots/dispatch_window_gx_2.pdf', zone='CT')
-gx.plot_dispatch_window(0,168,'plots/dispatch_window_gx_3.pdf', zone='ME')
+# get true optimal SoC given full 8736 hourly demand as reconsctucted from the TDR period map
+hr = results(results_8736)
 
-sc.plot_dispatch_window(0,168,'plots/dispatch_window_sc.pdf')
-sc.plot_dispatch_window(0,168,'plots/dispatch_window_sc_1.pdf', zone='MA')
-sc.plot_dispatch_window(0,168,'plots/dispatch_window_sc_2.pdf', zone='CT')
-sc.plot_dispatch_window(0,168,'plots/dispatch_window_sc_3.pdf', zone='ME')
+tstart, tend = 0,168
+# tstart, tend = 44*168, 45*168
+hr.plot_dispatch_window(tstart, tend, 'plots/dispatch_window_hr.pdf')
+hr.plot_dispatch_window(tstart, tend, 'plots/dispatch_window_hr_1.pdf', zone='MA')
+hr.plot_dispatch_window(tstart, tend, 'plots/dispatch_window_hr_2.pdf', zone='CT')
+hr.plot_dispatch_window(tstart, tend, 'plots/dispatch_window_hr_3.pdf', zone='ME')
 
-batteries = ['MA_battery', 'CT_battery', 'ME_battery']
+gx.plot_dispatch_window(tstart, tend, 'plots/dispatch_window_gx.pdf')
+gx.plot_dispatch_window(tstart, tend, 'plots/dispatch_window_gx_1.pdf', zone='MA')
+gx.plot_dispatch_window(tstart, tend, 'plots/dispatch_window_gx_2.pdf', zone='CT')
+gx.plot_dispatch_window(tstart, tend, 'plots/dispatch_window_gx_3.pdf', zone='ME')
 
-# get true optimal SoC given 8736 demand as reconsctucted from the TDR period map
-SoC_8736 = pd.read_csv(f'{results_8736}/storage.csv')[2:] # timeseries starts at index 2
-SoC_8736.reset_index(drop=True, inplace=True)
-SoC_8736['Hour'] = np.arange(8736)+1
+sc.plot_dispatch_window(tstart, tend, 'plots/dispatch_window_sc.pdf')
+sc.plot_dispatch_window(tstart, tend, 'plots/dispatch_window_sc_1.pdf', zone='MA')
+sc.plot_dispatch_window(tstart, tend, 'plots/dispatch_window_sc_2.pdf', zone='CT')
+sc.plot_dispatch_window(tstart, tend, 'plots/dispatch_window_sc_3.pdf', zone='ME')
 
-# reconstruct 8736 storage SoC from represenative period data
-storage_TDR_SDS = pd.read_csv(f'{results_TDR_SDS}/storage.csv')[2:] # timeseries starts at index 2
 
-SoC_TDR_SDS = pd.concat([storage_TDR_SDS[168*(i-1):168*i] for i in period_map.Rep_Period_Index])
-SoC_TDR_SDS.reset_index(drop=True, inplace=True)
-SoC_TDR_SDS['Hour'] = np.arange(8736)+1
-
-# get SoC for LDS representations
-SoC_TDR_GX_LDS = pd.read_csv(f'{results_TDR_GX_LDS}/storageEvol.csv')[batteries][1:]
-SoC_TDR_GX_LDS.reset_index(drop=True, inplace=True)
-SoC_TDR_GX_LDS['Total'] = SoC_TDR_GX_LDS.sum(axis=1)
-SoC_TDR_GX_LDS['Hour'] = np.arange(8736)+1
-
-SoC_TDR_SC_LDS = pd.read_csv(f'{results_TDR_SC_LDS}/storageEvol.csv')[batteries][1:]
-SoC_TDR_SC_LDS.reset_index(drop=True, inplace=True)
-SoC_TDR_SC_LDS['Total'] = SoC_TDR_SC_LDS.sum(axis=1)
-SoC_TDR_SC_LDS['Hour'] = np.arange(8736)+1
-
-# color_8736 = '#E60017'
-color_8736 = '#00A400'
-color_GX   = '#FF7400'
-color_SC   = '#0078B8'
+color_hr = '#00A400'
+color_gx = '#FF7400'
+color_sc = '#0078B8'
 
 # Plot SoC for the different dispatch algorithms
 def plot_SoC(name, y, title=''):
@@ -325,16 +321,39 @@ def plot_SoC(name, y, title=''):
     ax2.set_xlabel('Hour')
     ax1.set_ylabel('SoC [GWd]')
     ax2.set_ylabel('Hourly - TDR [GWd]')
-    ax1.plot(SoC_8736.Hour, SoC_8736[y]/24_000, color=color_8736, label='8736')
-    ax1.plot(SoC_TDR_GX_LDS.Hour, SoC_TDR_GX_LDS[y]/24_000, color=color_GX, label='TDR: GenX LDS')
-    ax1.plot(SoC_TDR_SC_LDS.Hour, SoC_TDR_SC_LDS[y]/24_000, color=color_SC, label='TDR: Sparse Chronology')
+    ax1.plot(hr.power.hour, hr.storage[y]/24, color=color_hr, label='8736')
+    ax1.plot(gx.power.hour, gx.storage[y]/24, color=color_gx, label='TDR: GenX LDS')
+    ax1.plot(sc.power.hour, sc.storage[y]/24, color=color_sc, label='TDR: Sparse Chronology')
+    energy_cap =  hr.capacity_csv[hr.capacity_csv.Resource == y].EndEnergyCap.iloc[0]/24_000
+    ax1.plot([1,8736], [energy_cap, energy_cap], color=[0,0,0,0.5], linestyle='--')
+    ax1.plot([1,8736], [0, 0], color=[0,0,0,0.5], linestyle='--')
     ax1.set_xlim([1,8736])
-    ax2.plot(SoC_8736.Hour, (SoC_8736[y] - SoC_TDR_GX_LDS[y])/24_000, color=color_GX)
-    ax2.plot(SoC_8736.Hour, (SoC_8736[y] - SoC_TDR_SC_LDS[y])/24_000, color=color_SC)
+    ax2.plot(hr.power.hour, (hr.storage[y] - gx.storage[y])/24, color=color_gx)
+    ax2.plot(hr.power.hour, (hr.storage[y] - sc.storage[y])/24, color=color_sc)
     ax1.legend(loc='best')
     fig.savefig(f'plots/{name}.pdf')
 
-plot_SoC('SoC_total_full_year_LDS', 'Total', 'All Batteries')
+plot_SoC('SoC_total_full_year_LDS', 'battery', 'All Batteries')
 plot_SoC('SoC_1_full_year_LDS', 'MA_battery', 'Zone 1 Battery')
 plot_SoC('SoC_2_full_year_LDS', 'CT_battery', 'Zone 2 Battery')
 plot_SoC('SoC_3_full_year_LDS', 'ME_battery', 'Zone 3 Battery')
+
+# Plot battery revenue for the different dispatch algorithms
+def plot_battery_revenue(name, y, title=''):
+    fig, (ax1, ax2) = plt.subplots(2, sharex=True, figsize=(10,7), layout='tight', gridspec_kw={'height_ratios': [3, 1]})
+    ax2.set_xlabel('Hour')
+    ax1.set_ylabel('Battery Net Revenue')
+    ax2.set_ylabel('Hourly - TDR')
+    ax1.plot(hr.power.hour, hr.battery_revenue[y]/24, color=color_hr, label='8736')
+    ax1.plot(gx.power.hour, gx.battery_revenue[y]/24, color=color_gx, label='TDR: GenX LDS')
+    ax1.plot(sc.power.hour, sc.battery_revenue[y]/24, color=color_sc, label='TDR: Sparse Chronology')
+    ax1.set_xlim([1,8736])
+    ax2.plot(hr.power.hour, (hr.battery_revenue[y] - gx.battery_revenue[y])/24, color=color_gx)
+    ax2.plot(hr.power.hour, (hr.battery_revenue[y] - sc.battery_revenue[y])/24, color=color_sc)
+    ax1.legend(loc='best')
+    fig.savefig(f'plots/{name}.pdf')
+
+plot_battery_revenue('battery_revenue_total_full_year_LDS', 'battery', 'All Batteries')
+plot_battery_revenue('battery_revenue_1_full_year_LDS', 'MA_battery', 'Zone 1 Battery')
+plot_battery_revenue('battery_revenue_2_full_year_LDS', 'CT_battery', 'Zone 2 Battery')
+plot_battery_revenue('battery_revenue_3_full_year_LDS', 'ME_battery', 'Zone 3 Battery')
